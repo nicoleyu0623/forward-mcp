@@ -109,6 +109,18 @@ func NewClient(config *config.ForwardConfig) ClientInterface {
 		TLSClientConfig: tlsConfig,
 	}
 
+	// Configure proxy if provided
+	if config.Proxy != "" {
+		proxyURL, err := url.Parse(config.Proxy)
+		if err != nil {
+			// Log error but continue without proxy
+			debugLogger := logger.New()
+			debugLogger.Warn("Invalid proxy URL %s: %v", config.Proxy, err)
+		} else {
+			transport.Proxy = http.ProxyURL(proxyURL)
+		}
+	}
+
 	return &Client{
 		httpClient: &http.Client{
 			Timeout:   time.Duration(config.Timeout) * time.Second,

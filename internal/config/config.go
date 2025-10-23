@@ -3,45 +3,50 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"strconv"
 	"strings"
 
 	"github.com/forward-mcp/internal/logger"
 	"github.com/joho/godotenv"
+	"gopkg.in/yaml.v2"
 )
 
 // Config holds all configuration for the application
 type Config struct {
-	Server  ServerConfig
-	Forward ForwardConfig
-	MCP     MCPConfig
+	Server  ServerConfig  `yaml:"server" json:"server"`
+	Forward ForwardConfig `yaml:"forward" json:"forward"`
+	MCP     MCPConfig     `yaml:"mcp" json:"mcp"`
 }
 
 // ServerConfig holds server-specific configuration
 type ServerConfig struct {
-	Port int
-	Host string
+	Port int    `yaml:"port" json:"port"`
+	Host string `yaml:"host" json:"host"`
 }
 
 // ForwardConfig holds Forward Networks API configuration
 type ForwardConfig struct {
-	APIKey            string `json:"apiKey" env:"FORWARD_API_KEY"`
-	APISecret         string `json:"apiSecret" env:"FORWARD_API_SECRET"`
-	APIBaseURL        string `json:"apiBaseUrl" env:"FORWARD_API_BASE_URL"`
-	DefaultNetworkID  string `json:"defaultNetworkId" env:"FORWARD_DEFAULT_NETWORK_ID"`
-	DefaultSnapshotID string `json:"defaultSnapshotId" env:"FORWARD_DEFAULT_SNAPSHOT_ID"`
-	DefaultQueryLimit int    `json:"defaultQueryLimit" env:"FORWARD_DEFAULT_QUERY_LIMIT"`
+	APIKey            string `yaml:"api_key" json:"apiKey" env:"FORWARD_API_KEY"`
+	APISecret         string `yaml:"api_secret" json:"apiSecret" env:"FORWARD_API_SECRET"`
+	APIBaseURL        string `yaml:"api_base_url" json:"apiBaseUrl" env:"FORWARD_API_BASE_URL"`
+	DefaultNetworkID  string `yaml:"default_network_id" json:"defaultNetworkId" env:"FORWARD_DEFAULT_NETWORK_ID"`
+	DefaultSnapshotID string `yaml:"default_snapshot_id" json:"defaultSnapshotId" env:"FORWARD_DEFAULT_SNAPSHOT_ID"`
+	DefaultQueryLimit int    `yaml:"default_query_limit" json:"defaultQueryLimit" env:"FORWARD_DEFAULT_QUERY_LIMIT"`
 
 	// TLS Configuration
-	InsecureSkipVerify bool   `json:"insecureSkipVerify" env:"FORWARD_INSECURE_SKIP_VERIFY"`
-	CACertPath         string `json:"caCertPath" env:"FORWARD_CA_CERT_PATH"`
-	ClientCertPath     string `json:"clientCertPath" env:"FORWARD_CLIENT_CERT_PATH"`
-	ClientKeyPath      string `json:"clientKeyPath" env:"FORWARD_CLIENT_KEY_PATH"`
-	Timeout            int    `json:"timeout" env:"FORWARD_TIMEOUT"`
+	InsecureSkipVerify bool   `yaml:"insecure_skip_verify" json:"insecureSkipVerify" env:"FORWARD_INSECURE_SKIP_VERIFY"`
+	CACertPath         string `yaml:"ca_cert_path" json:"caCertPath" env:"FORWARD_CA_CERT_PATH"`
+	ClientCertPath     string `yaml:"client_cert_path" json:"clientCertPath" env:"FORWARD_CLIENT_CERT_PATH"`
+	ClientKeyPath      string `yaml:"client_key_path" json:"clientKeyPath" env:"FORWARD_CLIENT_KEY_PATH"`
+	Timeout            int    `yaml:"timeout" json:"timeout" env:"FORWARD_TIMEOUT"`
+
+	// Proxy Configuration
+	Proxy string `yaml:"proxy" json:"proxy" env:"FORWARD_PROXY"`
 
 	// Semantic Cache Configuration
-	SemanticCache SemanticCacheConfig `json:"semanticCache"`
+	SemanticCache SemanticCacheConfig `yaml:"semantic_cache" json:"semanticCache"`
 }
 
 // CacheEvictionPolicy defines the eviction strategy
@@ -80,8 +85,8 @@ type SemanticCacheConfig struct {
 
 // MCPConfig holds MCP-specific configuration
 type MCPConfig struct {
-	Version    string
-	MaxRetries int
+	Version    string `yaml:"version" json:"version"`
+	MaxRetries int    `yaml:"max_retries" json:"maxRetries"`
 }
 
 // LoadConfig loads configuration from environment variables and .env file
@@ -106,6 +111,7 @@ func LoadConfig() *Config {
 			DefaultNetworkID:   getEnv("FORWARD_DEFAULT_NETWORK_ID", ""),
 			DefaultSnapshotID:  getEnv("FORWARD_DEFAULT_SNAPSHOT_ID", ""),
 			DefaultQueryLimit:  getEnvAsInt("FORWARD_DEFAULT_QUERY_LIMIT", 10000),
+			Proxy:              getEnv("FORWARD_PROXY", ""),
 			SemanticCache: SemanticCacheConfig{
 				Enabled:             getEnvAsBool("FORWARD_SEMANTIC_CACHE_ENABLED", true),
 				MaxEntries:          getEnvAsInt("FORWARD_SEMANTIC_CACHE_MAX_ENTRIES", 1000),
@@ -146,6 +152,20 @@ func loadEnvFile() {
 		debugLogger := logger.New()
 		debugLogger.Debug("Could not load .env file: %v", err)
 	}
+}
+
+func LoadYAMLConfig(filename string) (*Config, error) {
+	data, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read YAML config file: %w", err)
+	}
+
+	var config Config
+	if err := yaml.Unmarshal(data, &config); err != nil {
+		return nil, fmt.Errorf("failed to parse YAML config: %w", err)
+	}
+
+	return &config, nil
 }
 
 // loadJSONConfig loads configuration from a JSON file
@@ -195,6 +215,9 @@ func loadJSONConfig(config *Config) error {
 	}
 	if jsonConfig.Forward.DefaultQueryLimit > 0 {
 		config.Forward.DefaultQueryLimit = jsonConfig.Forward.DefaultQueryLimit
+	}
+	if jsonConfig.Forward.Proxy != "" {
+		config.Forward.Proxy = jsonConfig.Forward.Proxy
 	}
 
 	return nil
